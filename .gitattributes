@@ -1,0 +1,7 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.cmd text eol=crlf
+reports/ export-ignore
+VALIDATION.md export-ignore
+__pycache__/ export-ignore

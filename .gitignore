@@ -1,0 +1,31 @@
+# Local scan results and cleanup logs contain complete paths and app names.
+reports/
+VALIDATION.md
+*.json
+*.jsonl
+*.log
+*.csv
+*.tsv
+*.db
+*.sqlite*
+
+# Python-generated files.
+__pycache__/
+*.py[cod]
+
+# Local credentials, if added later.
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.kdbx
+.venv/
+venv/
+.idea/
+.vscode/
+dist/
+build/
+*.zip
+.publish_private.py
