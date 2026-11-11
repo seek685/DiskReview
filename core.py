@@ -145,6 +145,31 @@ def cache_rules(user):
     add(windows, 'SoftwareDistribution/Download', 'Windows 更新下载', '系统更新包和展开文件；Windows 会继续下载而重新增长。', '使用下方“Windows 存储设置”清理，避免干扰更新。', '系统管理', True)
     add(windows, 'LiveKernelReports', 'Windows 故障转储', '内核、驱动和硬件故障的诊断数据。', '不再排查故障时可清理；权限不足时使用 Windows 存储设置。', '日志/诊断')
     add(programs_x86, 'Google/GoogleUpdater/crx_cache', 'Google 更新缓存', 'Google 软件的更新下载包。', '确认更新完成后可清理；权限不足时由系统处理。', '更新包')
+    add(local, 'uv/cache', 'uv Python 下载和构建缓存', 'uv 可重新下载和构建的软件包缓存。', '关闭 uv 和安装任务后可清理；下次安装可能重新下载或构建。')
+    add(local, 'D3DSCache', 'DirectX 着色器缓存', '图形程序可重新生成的着色器缓存。', '退出游戏和图形程序后清理；首次运行可能需要重新编译。')
+    for app in ('Code', 'Code - Insiders', 'Cursor', 'Windsurf', 'Antigravity', 'bilibili', 'jlc-assistant'):
+        for suffix in ('Cache', 'Code Cache', 'GPUCache'):
+            path = os.path.join(roaming, app, suffix)
+            if not any(key(r.path) == key(path) for r in rules):
+                add(roaming, f'{app}/{suffix}', f'{app} {suffix}',
+                    '应用界面或图形资源缓存；不包含整个账号配置、工程或聊天资料。',
+                    '退出对应应用后可清理；首次启动会重新生成缓存。')
+    # Each browser profile has its own cache. Never expose the whole User Data folder.
+    for browser, label in (('Google/Chrome', 'Chrome'), ('Microsoft/Edge', 'Edge')):
+        profiles = os.path.join(local, *browser.split('/'), 'User Data')
+        try:
+            with os.scandir(profiles) as entries:
+                names = [e.name for e in entries if e.name == 'Default' or
+                         (e.name.startswith('Profile ') and e.name[8:].isdigit())]
+        except OSError:
+            names = []
+        for profile in names:
+            for suffix in ('Cache', 'Code Cache', 'GPUCache'):
+                path = os.path.join(profiles, profile, suffix)
+                if not any(key(r.path) == key(path) for r in rules):
+                    rules.append(Rule(path, f'{label} {profile} {suffix}', '浏览器可重新下载的网页或图形资源缓存。',
+                                      '关闭浏览器后可清理；不处理密码、书签和整个配置目录。'))
+    add(windows, 'Temp', 'Windows 临时文件', '系统安装和维护产生的临时数据。', '使用 Windows 存储设置清理；不在工具中手动删除。', '系统管理', True)
     return rules
 
 

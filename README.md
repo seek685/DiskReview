@@ -6,6 +6,29 @@
 
 安装带 Tcl/Tk 的 Python 3.11+ 后双击 `start.cmd`，或运行 `py -3 app.py`。自动识别本机固定磁盘、当前用户的 AppData 和系统目录，不依赖特定盘符。工具不会自动删除，也没有安装计划任务。
 
+## C 盘空间诊断
+
+双击 `启动C盘诊断.cmd`，或运行 `py -3 app.py --c-start`，打开并分析系统盘。也可在主窗口点“C 盘空间诊断”，再点“分析 C 盘”。“C 盘”入口实际使用 Windows 系统盘，不依赖安装位置。
+
+“目录占用排行”把小文件累计到目录总量，支持逐层展开，按大小排列；单个达到 100 MB 的大文件也会列出。这里的统计不受主窗口 500 MB 大文件阈值影响。父目录包含子目录，不可重复相加；每层最多展示最大的 500 项，目录总大小仍包含全部项目。
+
+选中项目查看用途、处理影响和建议。明确识别的缓存可在确认后清理；聊天记录、下载资料、模型和虚拟磁盘需要先确认或备份；软件本体通过应用设置卸载；系统目录、分页和休眠文件交给 Windows 管理。目录名为 `cache` 不代表整个目录都能删除。不要手动删除 WinSxS 和 Windows Installer 缓存。
+
+“清理建议”列出已识别的缓存、更新暂存和回收站位置，避免父子目录重复统计。建议大小不是保证可释放的空间；停止后的部分结果不会生成清理建议。点“查看 C 盘可清理文件…”会重新扫描系统盘，缓存显示门槛调整为 1 MB，沿用当前保留天数，所有项目仍默认未勾选。新增浏览器多个配置的网页/图形缓存，以及常见编辑器界面缓存、uv 下载缓存和 DirectX 缓存规则；不处理整个账号配置或工程目录。
+
+扫描只读，跳过识别出的目录链接、云占位符和无法读取的内容，并注明统计限制。逻辑文件大小与系统报告已用空间口径不同，硬链接、压缩、系统保留空间和访问权限都会影响结果，不能用两者之差推断“隐藏垃圾”。默认“全部回收站”要清空后才释放空间；选择“推荐方式”时，勾选并再次确认的缓存和更新包会永久清理。
+
+命令行也支持只读占用分析：
+
+```
+py -3 app.py --scan space --output space-summary.json
+py -3 app.py --scan space --root C:\ --output space-summary.json
+```
+
+默认只导出容量和文件数量汇总，未指定输出路径时保存为报告目录内的 `latest-space-summary.json`，与缓存扫描清单分开。`--include-private-paths` 额外导出目录和大文件路径及错误示例。报告保留在本机，分享前请检查。系统清理依据：[Microsoft 磁盘空间清理说明](https://support.microsoft.com/en-us/windows/experience/storage-filemanagement/free-up-drive-space-in-windows)、[WinSxS 清理](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/clean-up-the-winsxs-folder?view=windows-11)、[Windows Installer 缓存保护](https://learn.microsoft.com/en-us/troubleshoot/windows-client/application-management/missing-windows-installer-cache)。
+
+## 主窗口扫描与清理
+
 1. 点“快速扫描缓存”，或“扫描本地磁盘”。全盘扫描会查找较大的普通文件和受保护文件，可能需要几分钟。
 2. 点击一行，查看完整路径、大小、用途和建议。说明来自明确的缓存目录规则、文件名和扩展名，不代表已经证明文件没用；不明文件只展示。
 3. 点击第一列方框勾选。所有项目默认不勾选；主窗口中的系统文件、聊天数据库、模型、虚拟磁盘和软件本体不可勾选。完整应用数据可在新增的“应用数据 / 占用”窗口中单独查看、确认回收。
@@ -43,7 +66,7 @@ Windows 更新缓存只展示，不在工具中直接删除。点“Windows 存�
 
 ```
 py -3 -B -m unittest discover -s tests -v
-py -3 -B -m py_compile app.py core.py app_inventory.py app_view.py platform_paths.py windows_ops.py
+py -3 -B -m py_compile app.py core.py app_inventory.py app_view.py platform_paths.py windows_ops.py space_audit.py space_view.py
 py -3 app.py --scan quick
 py -3 app.py --scan apps --output summary.json
 ```

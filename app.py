@@ -81,6 +81,8 @@ class App:
                   style='Muted.TLabel', wraplength=1000).grid(row=1, column=0, sticky='w', pady=(8, 12))
         controls = ttk.Frame(outer)
         controls.grid(row=2, column=0, sticky='ew')
+        self.c_button = ttk.Button(controls, text='C 盘空间诊断', style='Accent.TButton', command=self.open_c_audit)
+        self.c_button.pack(side='left', padx=(0, 8))
         self.quick = ttk.Button(controls, text='快速扫描缓存', style='Accent.TButton', command=lambda: self.start_scan(False))
         self.quick.pack(side='left', padx=(0, 8))
         self.full = ttk.Button(controls, text='扫描本地磁盘', command=lambda: self.start_scan(True))
@@ -193,7 +195,7 @@ class App:
             self.progress.stop()
         self.update_selection()
 
-    def start_scan(self, full):
+    def start_scan(self, full, roots=None):
         if self.busy:
             return
         try:
@@ -213,7 +215,7 @@ class App:
         self.status.set('正在全盘扫描，仅读取文件元数据…' if full else '正在扫描常见缓存目录…')
         def worker():
             try:
-                result = scan(ROOTS, cache_rules(str(USER_DIR)), full, cache_mb * MIB, file_mb * MIB, days,
+                result = scan(roots or ROOTS, cache_rules(str(USER_DIR)), full, cache_mb * MIB, file_mb * MIB, days,
                               lambda text: self.events.put(('progress', text)), self.cancel)
                 self.events.put(('scan', result))
             except Exception as exc:
@@ -332,6 +334,26 @@ class App:
         self.app_storage = AppStorageWindow(self.root, str(USER_DIR), ROOTS, REPORT_DIR)
         return self.app_storage
 
+    def open_c_audit(self):
+        from space_view import SpaceWindow
+        existing = getattr(self, 'c_audit', None)
+        if existing and existing.window.winfo_exists():
+            existing.window.lift()
+            return existing
+        self.c_audit = SpaceWindow(self.root, str(USER_DIR), self.review_c_cache)
+        return self.c_audit
+
+    def review_c_cache(self):
+        if self.busy:
+            messagebox.showinfo('扫描进行中', '请先等待当前操作结束，或点停止。', parent=self.root)
+            return False
+        from space_audit import system_drive
+        self.cache_mb.set('1')
+        self.search.set('')
+        self.category.set('全部项目')
+        self.start_scan(False, roots=[system_drive()])
+        return True
+
     def start_cleanup(self):
         if not self.selected or self.busy or self.stale or not self.result:
             return
@@ -417,6 +439,11 @@ class App:
         self.root.after(100, self.poll)
 
     def close(self):
+        c_audit = getattr(self, 'c_audit', None)
+        if c_audit and c_audit.window.winfo_exists() and c_audit.busy:
+            c_audit.cancel.set()
+            self.status.set('正在停止 C 盘分析，结束后可关闭。')
+            return
         app_storage = getattr(self, 'app_storage', None)
         if app_storage and app_storage.window.winfo_exists() and app_storage.busy:
             app_storage.cancel.set()
@@ -433,12 +460,13 @@ class App:
 def main():
     global ROOTS
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scan', choices=('quick', 'full', 'apps'))
+    parser.add_argument('--scan', choices=('quick', 'full', 'apps', 'space'))
     parser.add_argument('--output')
     parser.add_argument('--root', action='append', help='Local directory or drive to scan; repeat for multiple roots')
     parser.add_argument('--include-private-paths', action='store_true', help='Include sensitive paths in exported reports')
     parser.add_argument('--quick-start', action='store_true')
     parser.add_argument('--apps-start', action='store_true')
+    parser.add_argument('--c-start', action='store_true', help='Open system-drive analysis on startup')
     args = parser.parse_args()
     if os.name != 'nt':
         parser.error('DiskReview requires Windows 10/11')
@@ -449,8 +477,24 @@ def main():
     if args.include_private_paths:
         print('Warning: exported report will contain private file paths and application names.', file=sys.stderr)
     if not args.output:
-        args.output = str(REPORT_DIR / ('latest-app-storage.json' if args.scan == 'apps' else 'latest-scan.json'))
+        output_name = {'apps': 'latest-app-storage.json', 'space': 'latest-space-summary.json'}.get(args.scan, 'latest-scan.json')
+        args.output = str(REPORT_DIR / output_name)
     if args.scan:
+        if args.scan == 'space':
+            from space_audit import audit_drive, system_drive
+            result = audit_drive(ROOTS[0] if args.root else system_drive())
+            node = result.nodes[os.path.normcase(os.path.abspath(result.root))]
+            report = {'total_bytes': result.total, 'free_bytes': result.free, 'logical_bytes': node.size,
+                      'files': node.files, 'error_count': node.errors, 'skipped_links': node.links,
+                      'cancelled': result.cancelled, 'seconds': round(result.seconds, 1)}
+            if args.include_private_paths:
+                from dataclasses import asdict
+                report['directories_and_large_files'] = [asdict(n) for n in result.nodes.values()]
+                report['errors'] = result.errors
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(json.dumps({k: v for k, v in report.items() if k not in ('directories_and_large_files', 'errors')}, ensure_ascii=False))
+            return
         if args.scan == 'apps':
             from app_inventory import export_inventory, scan_apps
             result = scan_apps(str(USER_DIR), ROOTS)
@@ -471,6 +515,8 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     root = tk.Tk()
     app = App(root)
+    if args.c_start:
+        root.after(250, lambda: app.open_c_audit().start_scan())
     if args.quick_start:
         root.after(250, lambda: app.start_scan(False))
     if args.apps_start:

@@ -44,7 +44,7 @@ class InterfaceTests(unittest.TestCase):
             with self.subTest(width=width, height=height):
                 self.root.geometry(f'{width}x{height}+20+20')
                 self.root.update()
-                for widget in (self.app.clean_button, self.app.mode_combo, self.app.apps_button):
+                for widget in (self.app.clean_button, self.app.mode_combo, self.app.apps_button, self.app.c_button):
                     self.assertTrue(widget.winfo_ismapped(), '清理操作控件被挤出窗口')
                     x = widget.winfo_rootx() - self.root.winfo_rootx()
                     y = widget.winfo_rooty() - self.root.winfo_rooty()
